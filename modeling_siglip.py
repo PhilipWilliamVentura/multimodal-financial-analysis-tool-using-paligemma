@@ -210,9 +210,9 @@ class SiglipEncoder(nn.Module):
             [SiglipEncoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
     
-    def forward(self, inputs_embed: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs_embeds: torch.Tensor) -> torch.Tensor:
         # inputs_embeds: (Batch_Size, Num_Patches, Embed_Dim)
-        hidden_states = inputs_embed
+        hidden_states = inputs_embeds
 
         for encoder_layer in self.layers:
             # (Batch_Size, Num_patches, Embed_Dim) -> (Batch_Size, Num_Patches, Embed_Dim)

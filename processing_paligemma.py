@@ -24,7 +24,7 @@ def rescale(image: np.ndarray, scale: float, dtype: np.dtype = np.float32) -> np
 def normalize(image: np.ndarray, mean: Union[float, Iterable[float]], std: Union[float, Iterable[float]]) -> np.ndarray:
     mean = np.array(mean, dtype=image.dtype)
     std = np.array(std, dtype=image.dtype)
-    image (image - mean) / std
+    image = (image - mean) / std
     return image
 
 def process_images(images: List[Image.Image],

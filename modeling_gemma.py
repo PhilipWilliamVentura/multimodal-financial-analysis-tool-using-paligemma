@@ -149,26 +149,26 @@ class GemmaRotaryEmbedding(nn.Module):
         inv_freq = 1.0 / (self.base ** (torch.arange(0, self.dim, 2, dtype=torch.int64).float() / self.dim))
         self.register_buffer("inv_freq", tensor=inv_freq, persistent=False)
 
-        @torch.no_grad
-        def forward(self, x, position_ids, seq_len=None):
-            # x: (bs, num_attention_heads, seq_len, head_size)
-            self.inv_freq.to(x.device)
-            # inv_freq_expanded: (Batch_Size, Head_Dim // 2, 1)
-            inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
-            # position_ids_expanded: (Batch_Size, 1, Seq_len)
-            position_ids_expanded = position_ids[:, None, :].float()
-            device_type = x.device.type
-            device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
-            with torch.autocast(device_type=device_type, enabled=False):
-                # Multiply each theta by the position
-                # freqs: (Batch_Size, Head_Dim // 2, 1) @ (Batch_Size, 1, Seq_Len) --> (Batch_Size, Seq_Len, Head_Dim // 2)
-                freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
-                # emb: (Batch_Size, Seq_Len, Head_Dim)
-                emb = torch.cat((freqs, freqs), dim=-1)
-                # cos, sin: (Batch_Size, Seq_Len, Head_Dim)
-                cos = emb.cos()
-                sin = emb.sin()
-            return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
+    @torch.no_grad
+    def forward(self, x, position_ids, seq_len=None):
+        # x: (bs, num_attention_heads, seq_len, head_size)
+        self.inv_freq.to(x.device)
+        # inv_freq_expanded: (Batch_Size, Head_Dim // 2, 1)
+        inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
+        # position_ids_expanded: (Batch_Size, 1, Seq_len)
+        position_ids_expanded = position_ids[:, None, :].float()
+        device_type = x.device.type
+        device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
+        with torch.autocast(device_type=device_type, enabled=False):
+            # Multiply each theta by the position
+            # freqs: (Batch_Size, Head_Dim // 2, 1) @ (Batch_Size, 1, Seq_Len) --> (Batch_Size, Seq_Len, Head_Dim // 2)
+            freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
+            # emb: (Batch_Size, Seq_Len, Head_Dim)
+            emb = torch.cat((freqs, freqs), dim=-1)
+            # cos, sin: (Batch_Size, Seq_Len, Head_Dim)
+            cos = emb.cos()
+            sin = emb.sin()
+        return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
 
 def rotate_half(x):
     # Build the [-x2, x1, -x4, x3, ...] tensor for sin part of positional encoding
@@ -228,7 +228,7 @@ class GemmaAttention(nn.Module):
         # (Batch_Size, Seq_len, Num_Heads_KV * Head_Dim)
         key_states = self.k_proj(hidden_states)
         # (Batch_Size, Seq_len, Num_Heads_KV * Head_Dim)
-        values_states = self.v_proj(hidden_states)
+        value_states = self.v_proj(hidden_states)
         # (Batch_Size, Num_Heads_Q, Seq_Len, Head_Dim)
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         # (Batch_Size, Num_Heads_KV, Seq_Len, Head_Dim)
@@ -252,7 +252,7 @@ class GemmaAttention(nn.Module):
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
 
         assert attention_mask is not None
-        attn_weights = attn_weights * attention_mask
+        attn_weights = attn_weights + attention_mask
 
         # Softmax
         # (Batch_Size, Num_heads_Q, Seq_Len_Q, Seq_len_KV)
@@ -440,18 +440,18 @@ class PaliGemmaForConditionalGeneration(nn.Module):
     def tie_weights(self):
         return self.language_model.tie_weights()
     
-    def _merge_input_ids_with_image_features(self, image_features: torch.Tensor, inputs_embeds: torch.Tensor, inputs_ids: torch.Tensor, attention_mask: torch.Tensor, kv_cache: Optional[KVCache]=None):
+    def _merge_input_ids_with_image_features(self, image_features: torch.Tensor, inputs_embeds: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor, kv_cache: Optional[KVCache]=None):
         _, _, embed_dim = image_features.shape
-        batch_size, sequence_length = inputs_ids.shape
+        batch_size, sequence_length = input_ids.shape
         dtype, device = inputs_embeds.dtype, inputs_embeds.device
         # (Batch_Size, Seq_len, Hidden_Size)
         scaled_image_features = image_features / (self.config.hidden_size**0.5)
 
         final_embedding = torch.zeros(batch_size, sequence_length, embed_dim, dtype=dtype, device=device)
         # (Batch_Size, Seq_len)
-        text_mask = (inputs_ids != self.config.image_token_index) & (inputs_ids != self.pad_token_id)
-        image_mask = inputs_ids == self.config.image_token_index
-        pad_mask = inputs_ids == self.pad_token_id
+        text_mask = (input_ids != self.config.image_token_index) & (input_ids != self.pad_token_id)
+        image_mask = input_ids == self.config.image_token_index
+        pad_mask = input_ids == self.pad_token_id
 
         # Expand to use in torch.where
         text_mask_expanded = text_mask.unsqueeze(-1).expand(-1, -1, embed_dim)
