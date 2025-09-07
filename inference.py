@@ -1,6 +1,6 @@
 from PIL import Image
 import torch
-import fire 
+import fire
 
 from processing_paligemma import PaliGemmaProcessor
 from modeling_gemma import KVCache, PaliGemmaForConditionalGeneration
