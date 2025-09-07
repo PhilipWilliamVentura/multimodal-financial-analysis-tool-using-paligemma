@@ -432,58 +432,71 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         self.multi_modal_projector = PaliGemmaMultiModalProjector(config)
         self.vocab_size = config.vocab_size
 
-        language_model = GemmaForCausalLM(config.text_config)
-        self.language_model = language_model
+        # language model (decoder)
+        self.language_model = GemmaForCausalLM(config.text_config)
 
+        # expose pad token id
         self.pad_token_id = self.config.pad_token_id if self.config.pad_token_id is not None else -1
 
     def tie_weights(self):
         return self.language_model.tie_weights()
-    
-    def _merge_input_ids_with_image_features(self, image_features: torch.Tensor, inputs_embeds: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor, kv_cache: Optional[KVCache]=None):
+
+    # PEFT expects this to exist sometimes
+    def get_output_embeddings(self):
+        # GemmaForCausalLM defines lm_head; return that linear layer
+        return self.language_model.lm_head
+
+    # For generation helpers
+    def prepare_inputs_for_generation(self, input_ids=None, **kwargs):
+        # Minimal -> pass-through; generation code may extend this further if needed.
+        return {"input_ids": input_ids, **kwargs}
+
+    def _merge_input_ids_with_image_features(
+        self,
+        image_features: torch.Tensor,
+        inputs_embeds: torch.Tensor,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        kv_cache: Optional[KVCache] = None,
+    ):
         _, _, embed_dim = image_features.shape
         batch_size, sequence_length = input_ids.shape
         dtype, device = inputs_embeds.dtype, inputs_embeds.device
-        # (Batch_Size, Seq_len, Hidden_Size)
-        scaled_image_features = image_features / (self.config.hidden_size**0.5)
+
+        # scale image features to match text embedding normalization used later
+        scaled_image_features = image_features / (self.config.hidden_size ** 0.5)
 
         final_embedding = torch.zeros(batch_size, sequence_length, embed_dim, dtype=dtype, device=device)
-        # (Batch_Size, Seq_len)
+
+        # masks
         text_mask = (input_ids != self.config.image_token_index) & (input_ids != self.pad_token_id)
         image_mask = input_ids == self.config.image_token_index
         pad_mask = input_ids == self.pad_token_id
 
-        # Expand to use in torch.where
+        # expand masks to embedding dim
         text_mask_expanded = text_mask.unsqueeze(-1).expand(-1, -1, embed_dim)
         pad_mask_expanded = pad_mask.unsqueeze(-1).expand(-1, -1, embed_dim)
         image_mask_expanded = image_mask.unsqueeze(-1).expand(-1, -1, embed_dim)
 
-        # Add text embedding
+        # insert text embeddings where text_mask
         final_embedding = torch.where(text_mask_expanded, inputs_embeds, final_embedding)
-        # Add image embedding
+        # mask-insert image embeddings (masked_scatter expects matching numel)
         final_embedding = final_embedding.masked_scatter(image_mask_expanded, scaled_image_features)
-        # Zero out padding tokens
+        # zero out padding tokens
         final_embedding = torch.where(pad_mask_expanded, torch.zeros_like(final_embedding), final_embedding)
 
-        # CREATE ATTENTION MASK
-
+        # build causal/attn mask (keeps prior behaviour: no masking during prefill; generation queries handled)
         dtype, device = inputs_embeds.dtype, inputs_embeds.device
-        min_dtype = torch.finfo(dtype).min
         q_len = inputs_embeds.shape[1]
 
         if kv_cache is None or kv_cache.num_items() == 0:
-            # Prefill phase -> Don't Mask
-            causal_mask = torch.full(
-                (batch_size, q_len, q_len), fill_value=0, dtype=dtype, device=device
-            )
+            causal_mask = torch.full((batch_size, q_len, q_len), fill_value=0, dtype=dtype, device=device)
         else:
             assert q_len == 1
             kv_len = kv_cache.num_items() + q_len
-            causal_mask = torch.full(
-                (batch_size, q_len, kv_len), fill_value=0, dtype=dtype, device=device
-            )
-        
-        # (Batch_Size Q_len, KV_Len) -> (Batch_Size, Num_heads_Q, Q_len, KV_Len)
+            causal_mask = torch.full((batch_size, q_len, kv_len), fill_value=0, dtype=dtype, device=device)
+
+        # add head dim
         causal_mask = causal_mask.unsqueeze(1)
 
         if kv_cache is not None and kv_cache.num_items() > 0:
@@ -496,30 +509,81 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         return final_embedding, causal_mask, position_ids
 
     def forward(
-            self, 
-            input_ids: torch.LongTensor = None, 
-            pixel_values: torch.FloatTensor = None, 
-            attention_mask: Optional[torch.Tensor] = None,
-            kv_cache: Optional[KVCache] = None
-            ) -> Tuple:
+        self,
+        input_ids: Optional[torch.LongTensor] = None,
+        pixel_values: Optional[torch.FloatTensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        kv_cache: Optional[KVCache] = None,
+        labels: Optional[torch.LongTensor] = None,
+        return_dict: bool = True,
+        **kwargs,
+    ) -> Tuple:
+        """
+        Accepts either input_ids OR inputs_embeds. If inputs_embeds is provided (as PEFT/LoRA
+        may pass), we use it. Otherwise we compute embeddings from input_ids.
+        Returns logits, and if labels provided also returns loss (cross entropy, ignore_index = config.ignore_index).
+        """
+
+        # Basic validation: ensure attention_mask is present and contains ones only (your original requirement)
+        if attention_mask is None:
+            raise ValueError("attention_mask must be provided")
         assert torch.all(attention_mask == 1), "The input cannot be padded"
 
-        # (Batch_Size, Seq_len, Hidden_Size)
-        inputs_embeds = self.language_model.get_input_embeddings()(input_ids)
+        # If inputs_embeds not provided, compute from token ids using LM input embeddings
+        if inputs_embeds is None:
+            if input_ids is None:
+                raise ValueError("You must provide either input_ids or inputs_embeds")
+            inputs_embeds = self.language_model.get_input_embeddings()(input_ids)
 
-        # (Batch_Size, Channels, Height, Width) -> (Batch_Size, Num_patches, Embed_Dim)
-        selected_image_feature = self.vision_tower(pixel_values.to(inputs_embeds.dtype))
-        # (Batch_Size, Num_patches, Embed_Dim) -> (Batch_Size, Num_patches, Hidden_Size)
-        image_features = self.multi_modal_projector(selected_image_feature)
+        # Image -> image features -> projected to hidden dim
+        if pixel_values is not None:
+            # convert to same dtype as inputs_embeds, project and merge
+            selected_image_feature = self.vision_tower(pixel_values.to(inputs_embeds.dtype))
+            image_features = self.multi_modal_projector(selected_image_feature)
+        else:
+            # no pixel values -> empty image_features (shouldn't happen for your multi-modal usage)
+            image_features = torch.zeros(inputs_embeds.shape[0], 0, inputs_embeds.shape[-1], dtype=inputs_embeds.dtype, device=inputs_embeds.device)
 
-        # Merge the embeddings of the text tokens and the image tokens
-        inputs_embeds, attention_mask, position_ids = self._merge_input_ids_with_image_features(image_features, inputs_embeds, input_ids, attention_mask, kv_cache)
+        # Merge image features and text embeddings into final embeddings used by LM
+        inputs_embeds, attention_mask, position_ids = self._merge_input_ids_with_image_features(
+            image_features=image_features,
+            inputs_embeds=inputs_embeds,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            kv_cache=kv_cache,
+        )
 
-        outputs = self.language_model(
+        # Call language model with inputs_embeds (GemmaForCausalLM supports inputs_embeds in your file)
+        lm_outputs = self.language_model(
             attention_mask=attention_mask,
             position_ids=position_ids,
             inputs_embeds=inputs_embeds,
-            kv_cache=kv_cache
+            kv_cache=kv_cache,
+            **kwargs,
         )
 
-        return outputs
+        logits = lm_outputs["logits"]  # shape: (batch, seq_len, vocab_size)
+
+        loss = None
+        if labels is not None:
+            # standard causal LM shift: predict token t from inputs up to t-1.
+            # Shift logits and labels accordingly.
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            loss_fct = CrossEntropyLoss(ignore_index=self.config.ignore_index)
+            loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+
+        # Build return
+        if return_dict:
+            out = {"logits": logits}
+            if loss is not None:
+                out["loss"] = loss
+            if kv_cache is not None:
+                out["kv_cache"] = kv_cache
+            return out
+        else:
+            to_return = (logits,)
+            if loss is not None:
+                to_return = (loss,) + to_return
+            return to_return

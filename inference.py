@@ -80,7 +80,7 @@ def test_inference(
     # Decode
     decoded = processor.tokenizer.decode(generated_tokens, skip_special_tokens=True)
 
-    print(prompt + decoded)
+    return prompt + decoded
 
 def main(
         model_path: str = None,
@@ -112,7 +112,7 @@ def main(
 
     print("Running inference")
     with torch.no_grad():
-        test_inference(
+        print(test_inference(
             model,
             processor,
             device,
@@ -122,7 +122,7 @@ def main(
             temperature,
             top_p,
             do_sample
-        )
+        ))
 
 if __name__ == "__main__":
     fire.Fire(main)
