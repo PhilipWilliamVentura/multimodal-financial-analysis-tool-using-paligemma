@@ -11,8 +11,61 @@ from torchvision import transforms
 from transformers import AutoTokenizer
 from peft import LoraConfig, get_peft_model, TaskType
 import torch.nn as nn
+from transformers import AutoModelForCausalLM
 
 from utils import load_hf_model  # returns (model, tokenizer)
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+# -------------------------
+# GPU Memory Management Functions
+# -------------------------
+def clear_cuda_memory():
+    """Comprehensive CUDA memory cleanup"""
+    if torch.cuda.is_available():
+        # Clear CUDA cache
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        
+        # Force garbage collection
+        gc.collect()
+        
+        # Reset peak memory stats
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.reset_accumulated_memory_stats()
+        
+        print(f"GPU memory cleared. Available: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+
+def setup_cuda_environment():
+    """Setup optimal CUDA environment"""
+    if torch.cuda.is_available():
+        # Set memory allocation strategy
+        os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True,max_split_size_mb:128'
+        
+        # Enable memory fraction to prevent overallocation
+        torch.cuda.set_per_process_memory_fraction(0.85)  # Use 85% of available memory
+        
+        # Clear any existing memory
+        clear_cuda_memory()
+        
+        print(f"CUDA setup complete. Device: {torch.cuda.get_device_name()}")
+        print(f"Total memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+
+def monitor_cuda_memory(step_name=""):
+    """Monitor CUDA memory usage"""
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        reserved = torch.cuda.memory_reserved() / 1024**3
+        total = torch.cuda.get_device_properties(0).total_memory / 1024**3
+        free = total - reserved
+        
+        print(f"Memory {step_name}: Allocated: {allocated:.2f}GB, Reserved: {reserved:.2f}GB, Free: {free:.2f}GB")
+        
+        # Warning if memory usage is high
+        if allocated > total * 0.8:
+            print(f"Warning: High memory usage ({allocated:.2f}/{total:.2f} GB)")
+        
+        return allocated, reserved, free
 
 # -------------------------
 # Dataset validation utility
@@ -159,11 +212,10 @@ class FinancialImageDataset(Dataset):
 # Memory management utilities
 # -------------------------
 def clear_memory(device):
-    """Clear memory based on device type"""
+    """Clear memory based on device type with enhanced CUDA support"""
     gc.collect()
     if device == "cuda":
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        clear_cuda_memory()
     elif device == "mps":
         try:
             torch.mps.empty_cache()
@@ -175,7 +227,7 @@ def clear_memory(device):
                 raise e
 
 def get_memory_usage(device):
-    """Get current memory usage"""
+    """Get current memory usage with enhanced CUDA monitoring"""
     if device == "cuda":
         return torch.cuda.memory_allocated() / 1024**3  # GB
     elif device == "mps":
@@ -330,11 +382,15 @@ def train(
     only_cpu: bool = False,
     image_size: Optional[int] = 224,  # Keep your original size
     device: Optional[str] = None,
-    accum_steps: int = 8,  # Increased for effective batch size
+    accum_steps: int = 16,  # Increased for effective batch size
     save_every_n_steps: int = 50,  # More frequent saves
-    max_memory_gb: float = 15.0,
-    max_samples: Optional[int] = 200,  # NEW: Limit samples for testing
+    max_memory_gb: float = 4.5,
+    max_samples: Optional[int] = 150,  # NEW: Limit samples for testing
 ):
+    # Setup CUDA environment first
+    if not only_cpu:
+        setup_cuda_environment()
+    
     # Device selection
     if device is None:
         device = "cpu"
@@ -354,6 +410,7 @@ def train(
 
     # Clear initial memory
     clear_memory(device)
+    monitor_cuda_memory("initial")
     
     # Validate dataset first to catch issues early
     print("Running dataset validation...")
@@ -369,7 +426,7 @@ def train(
     model = model.to(device)
     clear_memory(device)
     
-    print(f"Initial memory usage: {get_memory_usage(device):.2f} GB")
+    monitor_cuda_memory("after model load")
 
     # Image size
     if image_size is None and hasattr(model.config, "vision_config") and hasattr(model.config.vision_config, "image_size"):
@@ -403,7 +460,7 @@ def train(
         print("Gradient checkpointing not supported for this model, skipping.")
 
     clear_memory(device)
-    print(f"Memory after model setup: {get_memory_usage(device):.2f} GB")
+    monitor_cuda_memory("after LoRA setup")
 
     # Dataset + DataLoader with smaller batch processing
     print("Loading dataset...")
@@ -441,13 +498,20 @@ def train(
         optimizer.zero_grad()
 
         for i, batch in enumerate(dataloader):
-            # Check memory before processing
-            current_memory = get_memory_usage(device)
-            if current_memory > max_memory_gb:
-                print(f"Warning: Memory usage {current_memory:.2f} GB exceeds limit {max_memory_gb} GB")
-                clear_memory(device)
+            # Check memory before processing with enhanced CUDA monitoring
+            if device == "cuda":
+                allocated, reserved, free = monitor_cuda_memory(f"step {i+1}")
+                if allocated > max_memory_gb:
+                    print(f"Warning: Memory usage {allocated:.2f} GB exceeds limit {max_memory_gb} GB")
+                    clear_memory(device)
+                    monitor_cuda_memory("after cleanup")
+            else:
                 current_memory = get_memory_usage(device)
-                print(f"After cleanup: {current_memory:.2f} GB")
+                if current_memory > max_memory_gb:
+                    print(f"Warning: Memory usage {current_memory:.2f} GB exceeds limit {max_memory_gb} GB")
+                    clear_memory(device)
+                    current_memory = get_memory_usage(device)
+                    print(f"After cleanup: {current_memory:.2f} GB")
 
             try:
                 # Move batch to device
@@ -514,6 +578,9 @@ def train(
                 if device == "mps":
                     gc.collect()  # Only use gc for MPS to avoid watermark issues
                 elif device == "cuda":
+                    if i % 5 == 0:  # Clear CUDA memory every 5 steps
+                        clear_memory(device)
+                else:
                     clear_memory(device)
 
                 # Progress reporting
@@ -528,6 +595,27 @@ def train(
                     print(f"Saving checkpoint to {checkpoint_dir}...")
                     save_checkpoint_robust(model, tokenizer, checkpoint_dir, f"epoch_{epoch+1}_step_{i+1}")
 
+            except torch.cuda.OutOfMemoryError as e:
+                print(f"CUDA OOM error at step {i+1}: {e}")
+                print("Attempting aggressive memory cleanup...")
+                
+                # Aggressive cleanup
+                if 'outputs' in locals(): del outputs
+                if 'logits' in locals(): del logits
+                if 'loss' in locals(): del loss
+                if 'input_ids' in locals(): del input_ids
+                if 'attention_mask' in locals(): del attention_mask
+                if 'pixel_values' in locals(): del pixel_values
+                
+                clear_memory(device)
+                monitor_cuda_memory("after OOM cleanup")
+                
+                # Reset gradients
+                optimizer.zero_grad()
+                
+                print("Skipping this batch and continuing...")
+                continue
+                
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
                     print(f"OOM error at step {i+1}: {e}")

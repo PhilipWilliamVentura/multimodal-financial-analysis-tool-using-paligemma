@@ -1,38 +1,45 @@
-from modeling_gemma import PaliGemmaForConditionalGeneration, PaliGemmaConfig
 from transformers import AutoTokenizer
+from modeling_gemma import PaliGemmaConfig, PaliGemmaForConditionalGeneration
+import torch
 import json
-import glob
-from safetensors import safe_open
-from typing import Tuple
-import os
 
-def load_hf_model(model_path: str, device: str) -> Tuple[PaliGemmaForConditionalGeneration, AutoTokenizer]:
-    # Load the tokenizer
+def load_hf_model(model_path, device="cuda"):
+    # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side="right")
-    assert tokenizer.padding_side == "right"
 
-    # Find all the *.safetensors files
-    safetensors_files = glob.glob(os.path.join(model_path, "*.safetensors"))
+    # Load config
+    with open(f"{model_path}/config.json", "r") as f:
+        config = PaliGemmaConfig(**json.load(f))
 
-    # ... and load them one by one in the tensors dictionary
-    tensors = {}
-    for safetensors_file in safetensors_files:
-        with safe_open(safetensors_file, framework="pt", device="cpu") as f:
-            for key in f.keys():
-                tensors[key] = f.get_tensor(key)
+    # **Memory-efficient model loading**
+    model = PaliGemmaForConditionalGeneration(config)
 
-    # Load the model's config
-    with open(os.path.join(model_path, "config.json"), "r") as f:
-        model_config_file = json.load(f)
-        config = PaliGemmaConfig(**model_config_file)
+    # Use meta tensors + offload layers if needed (huggingface style)
+    try:
+        from accelerate import init_empty_weights, load_checkpoint_and_dispatch
+        from accelerate.utils import get_balanced_memory
 
-    # Create the model using the configuration
-    model = PaliGemmaForConditionalGeneration(config).to(device)
+        # Initialize empty model on CPU
+        with init_empty_weights():
+            empty_model = PaliGemmaForConditionalGeneration(config)
 
-    # Load the state dict of the model
-    model.load_state_dict(tensors, strict=False)
+        # Automatically calculate memory allocation for CPU/GPU
+        max_memory = get_balanced_memory(empty_model, low_zero=True)
+
+        # Load model checkpoint in 8-bit or half precision
+        model = load_checkpoint_and_dispatch(
+            empty_model,
+            model_path,
+            device_map="auto",  # splits layers across CPU/GPU
+            dtype=torch.float16,  # half precision
+            max_memory=max_memory,
+            no_split_module_classes=["PaliGemmaBlock"]  # adapt to your module names
+        )
+    except ImportError:
+        print("Accelerate not installed. Loading full model in float16 (may OOM).")
+        model.to(device=device, dtype=torch.float16)
 
     # Tie weights
     model.tie_weights()
 
-    return (model, tokenizer)
+    return model, tokenizer

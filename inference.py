@@ -1,3 +1,5 @@
+#inference.py
+
 from PIL import Image
 import torch
 import fire
