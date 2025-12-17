@@ -155,12 +155,23 @@ class GemmaRotaryEmbedding(nn.Module):
     def forward(self, x, position_ids, seq_len=None):
         # x: (bs, num_attention_heads, seq_len, head_size)
         self.inv_freq.to(x.device)
+        
+        # Ensure position_ids is 2D: (batch_size, seq_len)
+        if position_ids.dim() == 1:
+            position_ids = position_ids.unsqueeze(0)
+        
+        # Clamp position_ids to valid range to prevent out-of-bounds
+        max_pos = self.max_position_embeddings - 1
+        position_ids = torch.clamp(position_ids, 0, max_pos)
+        
         # inv_freq_expanded: (Batch_Size, Head_Dim // 2, 1)
         inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
         # position_ids_expanded: (Batch_Size, 1, Seq_len)
         position_ids_expanded = position_ids[:, None, :].float()
+        
         device_type = x.device.type
         device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
+        
         with torch.autocast(device_type=device_type, enabled=False):
             # Multiply each theta by the position
             # freqs: (Batch_Size, Head_Dim // 2, 1) @ (Batch_Size, 1, Seq_Len) --> (Batch_Size, Seq_Len, Head_Dim // 2)
@@ -170,6 +181,7 @@ class GemmaRotaryEmbedding(nn.Module):
             # cos, sin: (Batch_Size, Seq_Len, Head_Dim)
             cos = emb.cos()
             sin = emb.sin()
+    
         return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
 
 def rotate_half(x):
@@ -507,6 +519,20 @@ class PaliGemmaForConditionalGeneration(nn.Module):
                 position_ids = position_ids.unsqueeze(0)
         else:
             position_ids = (attention_mask.cumsum(-1)).masked_fill_((attention_mask == 0), 1).to(device)
+        
+        # WITH THIS (handles growing sequences properly):
+        if kv_cache is not None and kv_cache.num_items() > 0:
+            # With cache: only compute position for new token
+            position_ids = attention_mask.cumsum(-1)[:, -1]
+            if position_ids.dim() == 1:
+                position_ids = position_ids.unsqueeze(0)
+        else:
+            # Without cache or first pass: compute positions for all tokens
+            # This ensures positions are always 0, 1, 2, ... seq_len-1
+            seq_len = attention_mask.shape[1]
+            position_ids = torch.arange(seq_len, device=device).unsqueeze(0).expand(attention_mask.shape[0], -1)
+            # Mask out padding positions
+            position_ids = position_ids.masked_fill((attention_mask == 0), 0)
 
         return final_embedding, causal_mask, position_ids
 

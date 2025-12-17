@@ -33,6 +33,7 @@ def load_hf_model(model_path, device="cuda"):
             device_map="auto",  # splits layers across CPU/GPU
             dtype=torch.float16,  # half precision
             max_memory=max_memory,
+            offload_folder="offload", 
             no_split_module_classes=["PaliGemmaBlock"]  # adapt to your module names
         )
     except ImportError:

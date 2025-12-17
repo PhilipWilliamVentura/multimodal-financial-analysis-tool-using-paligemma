@@ -1,0 +1,302 @@
+[
+  {
+    "config_name": "baseline",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What animal is this?",
+    "output": "cat",
+    "latency_ms": 1563.5597705841064,
+    "tokens_generated": 2,
+    "memory_mb": 6.31884765625
+  },
+  {
+    "config_name": "baseline",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What color is the car?",
+    "output": "blue",
+    "latency_ms": 399.16133880615234,
+    "tokens_generated": 2,
+    "memory_mb": 6.33642578125
+  },
+  {
+    "config_name": "baseline",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What food is shown?",
+    "output": "breakfast",
+    "latency_ms": 400.50292015075684,
+    "tokens_generated": 2,
+    "memory_mb": 6.31884765625
+  },
+  {
+    "config_name": "baseline",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "Describe the landscape",
+    "output": "mountainous",
+    "latency_ms": 494.83299255371094,
+    "tokens_generated": 3,
+    "memory_mb": 6.3017578125
+  },
+  {
+    "config_name": "baseline",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What is the main subject?",
+    "output": "video",
+    "latency_ms": 407.58633613586426,
+    "tokens_generated": 2,
+    "memory_mb": 6.33642578125
+  },
+  {
+    "config_name": "no_kv_cache",
+    "kv_cache": false,
+    "temperature": 0.8,
+    "prompt": "What animal is this?",
+    "output": "cat",
+    "latency_ms": 687.7877712249756,
+    "tokens_generated": 2,
+    "memory_mb": 260.98681640625
+  },
+  {
+    "config_name": "no_kv_cache",
+    "kv_cache": false,
+    "temperature": 0.8,
+    "prompt": "What color is the car?",
+    "output": "blue",
+    "latency_ms": 639.6918296813965,
+    "tokens_generated": 2,
+    "memory_mb": 261.00537109375
+  },
+  {
+    "config_name": "no_kv_cache",
+    "kv_cache": false,
+    "temperature": 0.8,
+    "prompt": "What food is shown?",
+    "output": "breakfast",
+    "latency_ms": 660.6481075286865,
+    "tokens_generated": 2,
+    "memory_mb": 260.98681640625
+  },
+  {
+    "config_name": "no_kv_cache",
+    "kv_cache": false,
+    "temperature": 0.8,
+    "prompt": "Describe the landscape",
+    "output": "sunset above the clouds",
+    "latency_ms": 1880.063533782959,
+    "tokens_generated": 5,
+    "memory_mb": 261.0068359375
+  },
+  {
+    "config_name": "no_kv_cache",
+    "kv_cache": false,
+    "temperature": 0.8,
+    "prompt": "What is the main subject?",
+    "output": "art",
+    "latency_ms": 658.8485240936279,
+    "tokens_generated": 2,
+    "memory_mb": 261.00537109375
+  },
+  {
+    "config_name": "temp_0",
+    "kv_cache": true,
+    "temperature": 0.0,
+    "prompt": "What animal is this?",
+    "output": "cat",
+    "latency_ms": 415.39931297302246,
+    "tokens_generated": 2,
+    "memory_mb": 5.33740234375
+  },
+  {
+    "config_name": "temp_0",
+    "kv_cache": true,
+    "temperature": 0.0,
+    "prompt": "What color is the car?",
+    "output": "blue",
+    "latency_ms": 404.62636947631836,
+    "tokens_generated": 2,
+    "memory_mb": 5.35498046875
+  },
+  {
+    "config_name": "temp_0",
+    "kv_cache": true,
+    "temperature": 0.0,
+    "prompt": "What food is shown?",
+    "output": "breakfast",
+    "latency_ms": 405.87687492370605,
+    "tokens_generated": 2,
+    "memory_mb": 5.33740234375
+  },
+  {
+    "config_name": "temp_0",
+    "kv_cache": true,
+    "temperature": 0.0,
+    "prompt": "Describe the landscape",
+    "output": "of the mountains",
+    "latency_ms": 581.7484855651855,
+    "tokens_generated": 4,
+    "memory_mb": 5.33837890625
+  },
+  {
+    "config_name": "temp_0",
+    "kv_cache": true,
+    "temperature": 0.0,
+    "prompt": "What is the main subject?",
+    "output": "man",
+    "latency_ms": 412.5182628631592,
+    "tokens_generated": 2,
+    "memory_mb": 5.35498046875
+  },
+  {
+    "config_name": "temp_1",
+    "kv_cache": true,
+    "temperature": 1.0,
+    "prompt": "What animal is this?",
+    "output": "cat",
+    "latency_ms": 411.50450706481934,
+    "tokens_generated": 2,
+    "memory_mb": 6.31884765625
+  },
+  {
+    "config_name": "temp_1",
+    "kv_cache": true,
+    "temperature": 1.0,
+    "prompt": "What color is the car?",
+    "output": "white",
+    "latency_ms": 419.3882942199707,
+    "tokens_generated": 2,
+    "memory_mb": 6.33642578125
+  },
+  {
+    "config_name": "temp_1",
+    "kv_cache": true,
+    "temperature": 1.0,
+    "prompt": "What food is shown?",
+    "output": "breakfast",
+    "latency_ms": 409.4500541687012,
+    "tokens_generated": 2,
+    "memory_mb": 6.31884765625
+  },
+  {
+    "config_name": "temp_1",
+    "kv_cache": true,
+    "temperature": 1.0,
+    "prompt": "Describe the landscape",
+    "output": "mountains",
+    "latency_ms": 410.9964370727539,
+    "tokens_generated": 2,
+    "memory_mb": 6.28369140625
+  },
+  {
+    "config_name": "temp_1",
+    "kv_cache": true,
+    "temperature": 1.0,
+    "prompt": "What is the main subject?",
+    "output": "art",
+    "latency_ms": 408.8730812072754,
+    "tokens_generated": 2,
+    "memory_mb": 6.33642578125
+  },
+  {
+    "config_name": "short_gen",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What animal is this?",
+    "output": "cat",
+    "latency_ms": 412.1289253234863,
+    "tokens_generated": 2,
+    "memory_mb": 6.31884765625
+  },
+  {
+    "config_name": "short_gen",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What color is the car?",
+    "output": "blue",
+    "latency_ms": 411.13901138305664,
+    "tokens_generated": 2,
+    "memory_mb": 6.33642578125
+  },
+  {
+    "config_name": "short_gen",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What food is shown?",
+    "output": "breakfast",
+    "latency_ms": 406.38160705566406,
+    "tokens_generated": 2,
+    "memory_mb": 6.31884765625
+  },
+  {
+    "config_name": "short_gen",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "Describe the landscape",
+    "output": "mountain",
+    "latency_ms": 407.9251289367676,
+    "tokens_generated": 2,
+    "memory_mb": 6.28369140625
+  },
+  {
+    "config_name": "short_gen",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What is the main subject?",
+    "output": "film",
+    "latency_ms": 416.00847244262695,
+    "tokens_generated": 2,
+    "memory_mb": 6.33642578125
+  },
+  {
+    "config_name": "long_gen",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What animal is this?",
+    "output": "cat",
+    "latency_ms": 429.9960136413574,
+    "tokens_generated": 2,
+    "memory_mb": 6.31884765625
+  },
+  {
+    "config_name": "long_gen",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What color is the car?",
+    "output": "white",
+    "latency_ms": 417.90151596069336,
+    "tokens_generated": 2,
+    "memory_mb": 6.33642578125
+  },
+  {
+    "config_name": "long_gen",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What food is shown?",
+    "output": "breakfast",
+    "latency_ms": 410.45212745666504,
+    "tokens_generated": 2,
+    "memory_mb": 6.31884765625
+  },
+  {
+    "config_name": "long_gen",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "Describe the landscape",
+    "output": "mist over the mountains",
+    "latency_ms": 700.6902694702148,
+    "tokens_generated": 5,
+    "memory_mb": 6.337890625
+  },
+  {
+    "config_name": "long_gen",
+    "kv_cache": true,
+    "temperature": 0.8,
+    "prompt": "What is the main subject?",
+    "output": "man",
+    "latency_ms": 409.3630313873291,
+    "tokens_generated": 2,
+    "memory_mb": 6.33642578125
+  }
+]

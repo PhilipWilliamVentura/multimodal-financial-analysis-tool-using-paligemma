@@ -17,13 +17,12 @@ from datetime import datetime
 # Import from your existing files
 from processing_paligemma import PaliGemmaProcessor
 from modeling_gemma import KVCache, PaliGemmaForConditionalGeneration
-from utils import load_hf_model
 
 # ============================================================================
 # CONFIGURATION - EDIT THESE
 # ============================================================================
 
-MODEL_PATH = "/Users/hello./projects/paligemma-weights/paligemma-3b-pt-224"  # CHANGE THIS TO YOUR PATH
+MODEL_PATH = "/Users/Philip Ventura/projects/paligemma-weights/paligemma-3b-pt-224"  # CHANGE THIS TO YOUR PATH
 OUTPUT_DIR = "ablation_results"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -216,10 +215,55 @@ def main():
         item["image_path"] = save_path
     print("✓ Images ready\n")
     
-    # Load model
+    # Load model - SIMPLE METHOD (no accelerate)
     print("Step 2: Loading model...")
-    model, tokenizer = load_hf_model(MODEL_PATH, DEVICE)
-    model = model.to(DEVICE).eval()
+    print("  Loading config...")
+    
+    import json
+    from transformers import AutoTokenizer
+    from modeling_gemma import PaliGemmaConfig, PaliGemmaForConditionalGeneration
+    
+    # Load config
+    with open(os.path.join(MODEL_PATH, "config.json"), "r") as f:
+        config_dict = json.load(f)
+    config = PaliGemmaConfig(**config_dict)
+    
+    # Create model
+    print("  Creating model...")
+    model = PaliGemmaForConditionalGeneration(config)
+    
+    # Load weights manually (slower but reliable)
+    print("  Loading weights (this may take 2-3 minutes)...")
+    import safetensors.torch
+    
+    # Find all safetensor files
+    weight_files = list(Path(MODEL_PATH).glob("*.safetensors"))
+    if not weight_files:
+        weight_files = list(Path(MODEL_PATH).glob("*.bin"))
+    
+    print(f"  Found {len(weight_files)} weight files")
+    
+    # Load all weights
+    state_dict = {}
+    for weight_file in weight_files:
+        print(f"    Loading {weight_file.name}...")
+        if str(weight_file).endswith(".safetensors"):
+            weights = safetensors.torch.load_file(str(weight_file))
+        else:
+            weights = torch.load(str(weight_file), map_location="cpu")
+        state_dict.update(weights)
+    
+    print("  Loading state dict into model...")
+    model.load_state_dict(state_dict, strict=False)
+    
+    # Move to device
+    print(f"  Moving model to {DEVICE}...")
+    model = model.to(DEVICE)
+    model.eval()
+    
+    # Load tokenizer
+    print("  Loading tokenizer...")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, padding_side="right")
     
     num_image_tokens = model.config.vision_config.num_image_tokens
     image_size = model.config.vision_config.image_size

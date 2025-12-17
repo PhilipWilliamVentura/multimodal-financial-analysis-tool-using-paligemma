@@ -1,0 +1,25 @@
+# ABLATION STUDY SUMMARY FOR PAPER
+
+## Key Findings
+
+**KV Cache Performance:**
+- Baseline (with KV cache): 653.1 ms, 6.3 MB
+- Without KV cache: 905.4 ms, 261.0 MB
+- **Speedup: 1.39x faster** with KV caching enabled
+- **Memory overhead: 41.3x more memory** without caching
+
+**Temperature Impact:**
+- Greedy decoding (temp=0.0): 444.0 ms
+- Sampling (temp=1.0): 412.0 ms
+- Difference: 32.0 ms (7.2% change)
+
+## All Configurations
+
+| Configuration | Latency (ms) | Memory (MB) | Tokens |
+|--------------|--------------|-------------|--------|
+| short_gen | 410.7 | 6.3 | 2.0 |
+| temp_1 | 412.0 | 6.3 | 2.0 |
+| temp_0 | 444.0 | 5.3 | 2.4 |
+| long_gen | 473.7 | 6.3 | 2.6 |
+| baseline | 653.1 | 6.3 | 2.2 |
+| no_kv_cache | 905.4 | 261.0 | 2.6 |
