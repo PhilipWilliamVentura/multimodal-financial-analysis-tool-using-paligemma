@@ -97,27 +97,7 @@ plt.savefig(os.path.join(OUT_DIR, "fig4_memory.png"), dpi=300, bbox_inches='tigh
 plt.close()
 print("Saved: fig4_memory.pdf")
 
-# FIGURE 5 — Latency Distribution (Boxplot)
-fig, ax = plt.subplots()
-rng = np.random.default_rng(42)
-kv_samples = rng.normal(loc=kv_ms[2], scale=5.57, size=200)
-no_kv_samples = rng.normal(loc=no_kv_ms[2], scale=48.79, size=200)
-bp = ax.boxplot([kv_samples, no_kv_samples], 
-                 labels=["KV-cache", "No KV-cache"], 
-                 showfliers=False,
-                 patch_artist=True)
-for patch in bp['boxes']:
-    patch.set_facecolor('lightblue')
-ax.set_ylabel("Latency (ms/token)")
-ax.set_title("Latency Distribution at 512 Tokens")
-ax.grid(True, alpha=0.3, axis='y')
-plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, "fig5_distribution.pdf"), dpi=300, bbox_inches='tight')
-plt.savefig(os.path.join(OUT_DIR, "fig5_distribution.png"), dpi=300, bbox_inches='tight')
-plt.close()
-print("Saved: fig5_distribution.pdf")
-
-# FIGURE 6 — Log–Log Scaling Behavior
+# FIGURE 5 — Log–Log Scaling Behavior
 fig, ax = plt.subplots()
 ax.loglog(seq, kv_ms, marker='o', label="KV-cache", markersize=5)
 ax.loglog(seq, no_kv_ms, marker='s', label="No KV-cache", markersize=5)
@@ -127,10 +107,10 @@ ax.set_title("Log-Log Scaling Behavior")
 ax.legend(frameon=False)
 ax.grid(True, alpha=0.3, which='both')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, "fig6_loglog.pdf"), dpi=300, bbox_inches='tight')
-plt.savefig(os.path.join(OUT_DIR, "fig6_loglog.png"), dpi=300, bbox_inches='tight')
+plt.savefig(os.path.join(OUT_DIR, "fig5_loglog.pdf"), dpi=300, bbox_inches='tight')
+plt.savefig(os.path.join(OUT_DIR, "fig5_loglog.png"), dpi=300, bbox_inches='tight')
 plt.close()
-print("Saved: fig6_loglog.pdf")
+print("Saved: fig5_loglog.pdf")
 
 print("\nAll figures saved! Use the PDFs in your LaTeX paper.")
 print("\nResults summary:")
