@@ -15,11 +15,11 @@ from modeling_gemma import KVCache, PaliGemmaForConditionalGeneration, PaliGemma
 from transformers import AutoTokenizer
 
 MODEL_PATH = r"C:\Users\Philip Ventura\projects\paligemma-weights\paligemma-3b-pt-224"
-OUTPUT_DIR = "ablation_results_arxiv_v2"
+OUTPUT_DIR = "ablation_results"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Statistical rigor
-NUM_RUNS_PER_IMAGE = 3  # Multiple runs for confidence intervals
+NUM_RUNS_PER_IMAGE = 5  # Multiple runs for confidence intervals
 WARMUP_TOKENS = 32      # Exclude prefill + cache warmup
 SEQUENCE_LENGTHS = [128, 256, 512]  # Multiple lengths to show scaling
 
@@ -391,7 +391,7 @@ def main():
         print(f"⚠ Warmup failed: {e}\n")
     
     print("Step 4: Running experiments with statistical rigor...")
-    print(f"⚠️  Note: {len(COCO_BENCHMARK) * len(SEQUENCE_LENGTHS) * 2 * NUM_RUNS_PER_IMAGE} total runs will take time\n")
+    print(f"Note: {len(COCO_BENCHMARK) * len(SEQUENCE_LENGTHS) * 2 * NUM_RUNS_PER_IMAGE} total runs will take time\n")
     
     results = []
     
@@ -435,7 +435,7 @@ def main():
                                     # Debug: print first few tokens to diagnose
                                     baseline_tokens = baseline_outputs[key][:10]
                                     current_tokens = metrics["token_ids"][:10]
-                                    print(f"\n⚠️  WARNING: Token mismatch detected!")
+                                    print(f"\nWARNING: Token mismatch detected!")
                                     print(f"    Baseline (first 10): {baseline_tokens}")
                                     print(f"    Current (first 10):  {current_tokens}")
                         
@@ -517,7 +517,7 @@ def main():
     print(f"✓ Statistical summary: {OUTPUT_DIR}/summary_statistics.json\n")
     
     print("\n" + "="*80)
-    print("📊 ARXIV-READY RESULTS")
+    print("RESULTS")
     print("="*80)
     print(f"\n{'Configuration':<30} {'ms/token (±CI)':<20} {'tok/s (±CI)':<20} {'VRAM (MB)':<15}")
     print("-" * 90)
@@ -534,7 +534,7 @@ def main():
                       f"{s['peak_memory_mb']['mean']:.0f}")
     
     print("\n" + "="*80)
-    print("🔬 KEY FINDINGS")
+    print("KEY FINDINGS")
     print("="*80)
     
     # Calculate speedups across all sequence lengths
@@ -551,16 +551,14 @@ def main():
             print(f"  No cache:   {summary[no_cache_key]['steady_state_ms_per_token']['mean']:.1f} ±{summary[no_cache_key]['steady_state_ms_per_token']['ci_95']:.2f} ms/token")
     
     print("\n" + "="*80)
-    print("✅ PUBLICATION CHECKLIST")
+    print("PUBLICATION CHECKLIST")
     print("="*80)
     print(f"✓ Multiple sequence lengths: {SEQUENCE_LENGTHS}")
     print(f"✓ Statistical rigor: {NUM_RUNS_PER_IMAGE} runs per config, 95% CI reported")
     print(f"✓ Canonical dataset: MS-COCO 2017 validation")
-    print(f"✓ Correctness verified: Token-identical outputs")
+    print(f"✓ Correctness sanity-checked: outputs coherent; occasional token divergence logged and analyzed")
     print(f"✓ Memory isolation: Decoding-only peak measured")
     print(f"✓ Total samples: {len(results)}")
-    print("\n🎓 Ready for arXiv submission!")
-    print(f"\nNext: Run visualization script to generate scaling plots")
 
 if __name__ == "__main__":
     main()
