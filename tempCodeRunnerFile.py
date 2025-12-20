@@ -1,2 +1,0 @@
-
-        summary = json.load(f)

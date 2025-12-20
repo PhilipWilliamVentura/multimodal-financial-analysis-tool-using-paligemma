@@ -5,7 +5,7 @@ import torch
 from PIL import Image
 from inference import main, get_model_inputs, test_inference, load_hf_model, PaliGemmaProcessor
 
-st.title("Paligemma Financial Slide Analyzer")
+st.title("Paligemma Analyzer")
 
 uploaded_file = st.file_uploader("Upload an image or slide", type=["png", "jpg", "jpeg"])
 
@@ -13,7 +13,7 @@ if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, caption="Uploaded Image")
 
-    prompt = st.text_input("Prompt", "Describe the financial trend in this chart")
+    prompt = st.text_input("Prompt", "Describe the image")
     max_tokens = st.number_input("Max tokens to generate", value=100, step=10)
     temperature = st.slider("Temperature", 0.1, 2.0, 0.8)
     top_p = st.slider("Top-p sampling", 0.1, 1.0, 0.9)
