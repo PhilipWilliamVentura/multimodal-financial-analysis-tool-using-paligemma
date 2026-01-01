@@ -1,1 +1,1 @@
-# multimodal-financial-analysis-tool-using-paligemma
+Using a baseline model constructed from scratch with pretrained weights borrowed from Google’s public PaLI-Gemma-3B-PT-224-sm checkpoint, we compare inference behavior by running autoregressive decoding with standard KV-caching and then doing the same while disabling the model’s KV-cache. In doing so, we evaluate steady-state latency, throughput, and peak memory usage across multiple output sequence lengths under identical hardware settings. 
